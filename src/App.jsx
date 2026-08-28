@@ -5,6 +5,43 @@ import { fetchGalleryPhotos, addGalleryPhoto, updateGalleryPhoto, deleteGalleryP
 import { loginAdmin, logoutAdmin, watchAuth, changeOwnPassword } from "./lib/auth.js";
 
 /* ---------------------------------------------------------
+   GOOGLE DRIVE LINK HELPER
+   Staff often paste a Google Drive "share" link (from the Drive
+   app/website) instead of a direct image URL. Those links don't
+   work as an <img src> as-is, so we detect them and rewrite them
+   into a direct-viewable image URL automatically.
+--------------------------------------------------------- */
+function extractDriveFileId(url) {
+  if (!url) return null;
+  const patterns = [
+    /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/,   // .../file/d/FILE_ID/view
+    /drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/,   // .../open?id=FILE_ID
+    /drive\.google\.com\/uc\?(?:export=[a-z]+&)?id=([a-zA-Z0-9_-]+)/, // .../uc?id=FILE_ID
+    /[?&]id=([a-zA-Z0-9_-]+)/,                          // fallback: any ?id=FILE_ID
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function toDirectImageUrl(url) {
+  if (!url) return url;
+  const trimmed = url.trim();
+  if (!trimmed.includes("drive.google.com")) return trimmed;
+  const id = extractDriveFileId(trimmed);
+  if (!id) return trimmed;
+  // lh3.googleusercontent.com serves the file's image bytes directly and
+  // works for publicly-shared ("Anyone with the link") Drive files.
+  return `https://lh3.googleusercontent.com/d/${id}`;
+}
+
+function isDriveLink(url) {
+  return !!url && url.includes("drive.google.com");
+}
+
+/* ---------------------------------------------------------
    DESIGN TOKENS
 --------------------------------------------------------- */
 const T = {
@@ -827,6 +864,7 @@ function AdminLogin({ setPage }) {
 const TABS = [
   { id: "applications", label: "Applications" },
   { id: "school", label: "School Info" },
+  { id: "contact", label: "Contact" },
   { id: "academics", label: "Academics" },
   { id: "activities", label: "Activities" },
   { id: "faculty", label: "Faculty" },
@@ -853,6 +891,7 @@ function AdminDashboard({ setPage }) {
         </div>
         {tab === "applications" && <ApplicationsTab />}
         {tab === "school" && <SchoolInfoTab />}
+        {tab === "contact" && <ContactTab />}
         {tab === "activities" && <ListEditorTab kind="activities" />}
         {tab === "academics" && <ListEditorTab kind="academics" />}
         {tab === "faculty" && <ListEditorTab kind="faculty" />}
@@ -968,17 +1007,55 @@ function SchoolInfoTab() {
           <Field label="Established year"><input style={inputStyle} value={form.established} onChange={update("established")} /></Field>
           <Field label="Board"><input style={inputStyle} value={form.board} onChange={update("board")} /></Field>
         </div>
+        <Field label="Admissions eligibility & documents"><textarea style={{ ...inputStyle, minHeight: 80 }} value={form.eligibility} onChange={update("eligibility")} /></Field>
+        <Field label="Home page hero subtext"><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.heroSubtext} onChange={update("heroSubtext")} /></Field>
+        <Field label="About page intro (after school name)"><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.aboutText} onChange={update("aboutText")} /></Field>
+        <Field label="Our Mission"><textarea style={{ ...inputStyle, minHeight: 70 }} value={form.missionText} onChange={update("missionText")} /></Field>
+        <Field label="Our Vision"><textarea style={{ ...inputStyle, minHeight: 70 }} value={form.visionText} onChange={update("visionText")} /></Field>
+        <Field label="School logo">
+          <PhotoPicker value={form.logoUrl} onChange={(dataUrl) => { setForm((f) => ({ ...f, logoUrl: dataUrl })); setSaved(false); }} label="Choose logo photo" />
+        </Field>
+        {saved && <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.sage, marginTop: -8, marginBottom: 14 }}>Saved.</p>}
+        <Button variant="primary" onClick={submit}>Save changes</Button>
+      </div>
+    </Card>
+  );
+}
+
+function ContactTab() {
+  const { school, saveSchool } = useSite();
+  const [form, setForm] = useState(school);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  useEffect(() => setForm(school), [school]);
+  const update = (k) => (e) => { setForm((f) => ({ ...f, [k]: e.target.value })); setSaved(false); };
+  const submit = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      await saveSchool(form);
+      setSaved(true);
+    } catch (e) {
+      console.error(e);
+      setErr("Couldn't save. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card style={{ maxWidth: 640 }}>
+      <div>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13.5, color: T.inkSoft, marginTop: 0, marginBottom: 18 }}>
+          This is what shows up on the public "Contact us" page.
+        </p>
         <Field label="Address"><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.address} onChange={update("address")} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <Field label="Phone"><input style={inputStyle} value={form.phone} onChange={update("phone")} /></Field>
           <Field label="Email"><input style={inputStyle} value={form.email} onChange={update("email")} /></Field>
         </div>
         <Field label="Correspondent name"><input style={inputStyle} value={form.correspondent} onChange={update("correspondent")} /></Field>
-        <Field label="Admissions eligibility & documents"><textarea style={{ ...inputStyle, minHeight: 80 }} value={form.eligibility} onChange={update("eligibility")} /></Field>
-        <Field label="Home page hero subtext"><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.heroSubtext} onChange={update("heroSubtext")} /></Field>
-        <Field label="About page intro (after school name)"><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.aboutText} onChange={update("aboutText")} /></Field>
-        <Field label="Our Mission"><textarea style={{ ...inputStyle, minHeight: 70 }} value={form.missionText} onChange={update("missionText")} /></Field>
-        <Field label="Our Vision"><textarea style={{ ...inputStyle, minHeight: 70 }} value={form.visionText} onChange={update("visionText")} /></Field>
         <Field label="Map pin location (latitude, longitude)">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <input style={inputStyle} value={form.mapLat} onChange={update("mapLat")} placeholder="Latitude" />
@@ -986,11 +1063,9 @@ function SchoolInfoTab() {
           </div>
           <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: T.inkSoft, marginTop: 6 }}>Right-click your school on Google Maps to copy exact coordinates.</p>
         </Field>
-        <Field label="School logo">
-          <PhotoPicker value={form.logoUrl} onChange={(dataUrl) => { setForm((f) => ({ ...f, logoUrl: dataUrl })); setSaved(false); }} label="Choose logo photo" />
-        </Field>
+        {err && <ErrText>{err}</ErrText>}
         {saved && <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.sage, marginTop: -8, marginBottom: 14 }}>Saved.</p>}
-        <Button variant="primary" onClick={submit}>Save changes</Button>
+        <Button variant="primary" onClick={submit} disabled={busy}>{busy ? "Saving..." : "Save changes"}</Button>
       </div>
     </Card>
   );
@@ -1086,8 +1161,9 @@ function GalleryTab() {
     setBusy(true);
     setSaveError("");
     try {
-      if (editing.id) await editPhoto(editing.id, { title: editing.title, imageUrl: editing.imageUrl.trim() });
-      else await addPhoto({ title: editing.title, imageUrl: editing.imageUrl.trim() });
+      const finalUrl = toDirectImageUrl(editing.imageUrl.trim());
+      if (editing.id) await editPhoto(editing.id, { title: editing.title, imageUrl: finalUrl });
+      else await addPhoto({ title: editing.title, imageUrl: finalUrl });
       setEditing(null);
     } catch (e) {
       console.error(e);
@@ -1118,21 +1194,29 @@ function GalleryTab() {
           <Field label="Image link">
             <input
               style={inputStyle}
-              placeholder="https://..."
+              placeholder="Paste a Google Drive share link or any image URL"
               value={editing.imageUrl}
               onChange={(e) => setEditing((x) => ({ ...x, imageUrl: e.target.value }))}
             />
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: T.inkSoft, marginTop: 6 }}>
+              Tip: for a Google Drive link, open the file in Drive → Share → "Anyone with the link", then paste the link here. It'll be converted automatically.
+            </p>
           </Field>
 
           {editing.imageUrl && (
             <div style={{ width: 100, height: 100, borderRadius: 8, overflow: "hidden", border: `1px solid ${T.line}`, marginBottom: 14, background: T.line }}>
               <img
-                src={editing.imageUrl}
+                src={toDirectImageUrl(editing.imageUrl)}
                 alt="Preview"
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 onError={(e) => { e.currentTarget.style.display = "none"; }}
               />
             </div>
+          )}
+          {isDriveLink(editing.imageUrl) && (
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: T.sage, marginTop: -10, marginBottom: 10 }}>
+              Google Drive link detected — it'll be saved as a direct image link.
+            </p>
           )}
 
           {saveError && (
