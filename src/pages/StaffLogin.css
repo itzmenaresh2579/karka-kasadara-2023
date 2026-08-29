@@ -1,0 +1,39 @@
+.staff-login-wrap {
+  min-height: 78vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background:
+    radial-gradient(circle at 85% 15%, rgba(245,166,35,0.14), transparent 45%),
+    var(--cream);
+}
+.staff-login-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--ink);
+  margin: 14px 0 6px;
+}
+.form-input, .form-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid rgba(31,42,68,0.14);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  background: var(--cream);
+  color: var(--ink);
+}
+.form-input:focus, .form-textarea:focus {
+  outline: none;
+  border-color: var(--marigold);
+}
+.form-textarea { resize: vertical; min-height: 90px; }
+.form-error { color: var(--coral); font-size: 0.88rem; margin-top: 10px; }
+.form-success { color: var(--leaf-deep); font-size: 0.88rem; margin-top: 10px; }
